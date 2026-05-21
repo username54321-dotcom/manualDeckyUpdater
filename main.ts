@@ -123,5 +123,8 @@ async function start() {
     },
   );
 }
-
-start();
+try {
+  start();
+} catch (error) {
+  console.log(error);
+}

@@ -1,5 +1,9 @@
 {
   "type": "module",
+  "bin": "main.ts",
+  "scripts": {
+    "build": "bun build --compile main.ts --outfile dist/decky-updater.exe "
+  },
   "dependencies": {
     "@inquirer/prompts": "^8.4.3",
     "@octokit/rest": "^22.0.1",
