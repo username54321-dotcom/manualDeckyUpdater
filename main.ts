@@ -9,18 +9,17 @@ import { getInstalledDate } from "./utils/getInstalledDate.ts";
 import { spinner } from "./utils/spinner.ts";
 import { getBuildUrl } from "./utils/getBuildUrl.ts";
 import unzip from "node-stream-zip";
+import chalk from "chalk";
 
-let localVerDate: undefined | Date;
-// const homeDir = os.homedir?();
 async function start() {
   // Greeting
-  spinner.start("Checking Latest Version"); // start spinner
+  spinner.start(chalk.greenBright("Checking Latest Version")); // start spinner
 
   // Check Latest Builds
 
   const latestBuilds = await getLatestBuilds();
   if (!latestBuilds) {
-    console.log("Error Fetching Latest Builds");
+    console.log(chalk.redBright("Error Fetching Latest Builds"));
     return;
   }
 
@@ -30,7 +29,9 @@ async function start() {
   // Check Installed Date
   if (isInstalled) {
     const installedDate = await getInstalledDate();
-    console.log(`Local Build Date : ${installedDate.toLocaleString()}`);
+    console.log(
+      `Local Build Date : ${chalk.blueBright.bgBlack.bold(installedDate.toLocaleString())}`,
+    );
   }
 
   // Stop Spinner after checking version
@@ -38,13 +39,13 @@ async function start() {
   // Select Build To Install
 
   const buildId = await select({
-    message: "Select Build To Install",
+    message: chalk.greenBright("Select Build To Install"),
     choices: latestBuilds,
     pageSize: 20,
   });
 
   // Download Update
-  spinner.start("Downloading Build");
+  spinner.start(chalk.greenBright("Downloading Build"));
 
   const buildUrl = await getBuildUrl(buildId);
 
@@ -58,8 +59,9 @@ async function start() {
     () => false,
   );
   spinner.stop();
-  downloaded && console.log("Download Successfull to Build.zip");
-  !downloaded && console.log("Download Unsuccessfull");
+  downloaded &&
+    console.log(chalk.blueBright("Download Successfull to Build.zip"));
+  !downloaded && console.log(chalk.redBright("Download Unsuccessfull"));
 
   const shouldInstall = await confirm({ message: "Extract and Install?" });
   !shouldInstall && process.exit();
@@ -67,7 +69,7 @@ async function start() {
     message: "Enter Steam Installation Path. ( Leave Empty For Default )",
     default: "C:/Program Files (x86)/Steam",
   });
-  spinner.start("installing");
+  spinner.start("Installing");
   const madeDir = await fs
     .mkdir(path.join(config.homeDir, "homebrew", "services"), {
       recursive: true,
@@ -85,8 +87,10 @@ async function start() {
         spinner.stop();
         const errMsg = err as NodeJS.ErrnoException;
         if (errMsg.code === "EBUSY") {
-          console.log(`ERROR!!!
-Please Make Sure Both PluginLoader.exe and PluginLoader_noconsole.exe are Not Running and Try Again`);
+          console.log(
+            chalk.redBright(`{ERROR!!!
+Please Make Sure Both PluginLoader.exe and PluginLoader_noconsole.exe are Not Running and Try Again}`),
+          );
         }
       },
     );
@@ -98,9 +102,11 @@ Please Make Sure Both PluginLoader.exe and PluginLoader_noconsole.exe are Not Ru
   );
 
   spinner.stop();
-  console.log("Installation Complete");
+  console.log(chalk.greenBright.bold("Installation Complete"));
 
-  const shouldDelete = await confirm({ message: "Delete Build Archive ?" });
+  const shouldDelete = await confirm({
+    message: chalk.green("Delete Build Archive ?"),
+  });
 
   shouldDelete &&
     (await fs.rm("./Build.zip").then(
