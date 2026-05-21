@@ -1,130 +1,115 @@
-import { input, checkbox, Separator, confirm } from "@inquirer/prompts";
-import ora from "ora";
+import { input, checkbox, Separator, confirm, select } from "@inquirer/prompts";
 import { githubClient } from "./clients/github.ts";
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
-import { isDate } from "node:util/types";
-import unzip from "extract-zip";
-import { mkdir } from "node:fs";
+import { getLatestBuilds } from "./utils/getLatestBuilds.ts";
+import { config } from "./config.ts";
+import { checkIfInstalled } from "./utils/checkIfInstalled.ts";
+import { getInstalledDate } from "./utils/getInstalledDate.ts";
+import { spinner } from "./utils/spinner.ts";
+import { getBuildUrl } from "./utils/getBuildUrl.ts";
+import unzip from "node-stream-zip";
 
 let localVerDate: undefined | Date;
-const homeDir = os.homedir();
-const spinner = ora();
+// const homeDir = os.homedir?();
 async function start() {
   // Greeting
   spinner.start("Checking Latest Version"); // start spinner
 
-  // Check Latest Ver
-  const runId = await githubClient.rest.actions
-    .listWorkflowRuns({
-      owner: "SteamDeckHomebrew",
-      repo: "decky-loader",
-      workflow_id: "build-win.yml",
-      status: "success",
-      per_page: 1,
-    })
-    .then((x) => x.data.workflow_runs[0].id);
-  const latestVer = await githubClient.rest.actions
-    .listWorkflowRunArtifacts({
-      owner: "SteamDeckHomebrew",
-      repo: "decky-loader",
-      run_id: runId,
-    })
-    .then((x) => x.data.artifacts[0]);
-  spinner.stop(); // Stop Spinner after checking version
-  // Check If Installed
-  const pluginLoaderDir = path.join(
-    homeDir,
-    "homebrew",
-    "services",
-    "PluginLoader.exe",
-  );
+  // Check Latest Builds
 
-  const pluginLoader = await fs
-    .access(path.join(homeDir, "homebrew", "services", "PluginLoader.exe"))
-    .then(
-      () => true,
-      () => false,
-    );
-  const pluginLoader_noConsole = await fs
-    .access(
-      path.join(homeDir, "homebrew", "services", "PluginLoader_noconsole.exe"),
-    )
-    .then(
-      () => true,
-      () => false,
-    );
-  if (pluginLoader && pluginLoader_noConsole) {
-    //check Version Date
-    localVerDate = (await fs.stat(pluginLoaderDir)).mtime;
-    console.log(`
-
-    Local Version Date : ${localVerDate.toLocaleString()}`);
-  }
-  console.log(`   Latest Version Date : ${new Date(latestVer.created_at as string).toLocaleString()} [${(latestVer.size_in_bytes / 1048576).toFixed(1)} MBs]
-    `);
-
-  if (
-    isDate(localVerDate) &&
-    localVerDate?.getTime() >= new Date(latestVer.created_at!).getTime()
-  ) {
-    console.log(`Latest Build Already Installed ! 
-      Exiting in 5 Seconds...`);
-    setTimeout(() => {
-      process.exit();
-    }, 5000);
+  const latestBuilds = await getLatestBuilds();
+  if (!latestBuilds) {
+    console.log("Error Fetching Latest Builds");
     return;
   }
 
-  // Download Update Prompt
-  const downloadUpdate = await confirm({ message: "Download Update ?" });
+  // Check If Installed
+  const isInstalled = await checkIfInstalled();
 
-  // Early Return
-  if (!downloadUpdate) process.exit();
+  // Check Installed Date
+  if (isInstalled) {
+    const installedDate = await getInstalledDate();
+    console.log(`Local Build Date : ${installedDate.toLocaleString()}`);
+  }
+
+  // Stop Spinner after checking version
+  spinner.stop();
+  // Select Build To Install
+
+  const buildId = await select({
+    message: "Select Build To Install",
+    choices: latestBuilds,
+    pageSize: 20,
+  });
 
   // Download Update
-  spinner.start("Downloading Update");
-  const response = await githubClient.request(
-    `GET ${latestVer.archive_download_url}`,
-    {
-      // headers: { accept: "application/vnd.github.v3+json" },
-    },
-  );
+  spinner.start("Downloading Build");
+
+  const buildUrl = await getBuildUrl(buildId);
+
+  const response = await githubClient.request(`GET ${buildUrl}`, {
+    // headers: { accept: "application/vnd.github.v3+json" },
+  });
 
   const buffer = Buffer.from(response.data as ArrayBuffer);
-  const downloaded = await fs.writeFile("./latestVer.zip", buffer).then(
+  const downloaded = await fs.writeFile("./Build.zip", buffer).then(
     () => true,
     () => false,
   );
   spinner.stop();
-  downloaded && console.log("Download Successfull");
+  downloaded && console.log("Download Successfull to Build.zip");
   !downloaded && console.log("Download Unsuccessfull");
 
   const shouldInstall = await confirm({ message: "Extract and Install?" });
   !shouldInstall && process.exit();
+  await input({
+    message: "Enter Steam Installation Path. ( Leave Empty For Default )",
+    default: "C:/Program Files (x86)/Steam",
+  });
   spinner.start("installing");
   const madeDir = await fs
-    .mkdir(path.join(homeDir, "homebrew", "services"), { recursive: true })
+    .mkdir(path.join(config.homeDir, "homebrew", "services"), {
+      recursive: true,
+    })
     .then(
       () => true,
       () => false,
     );
-  const extracted = await unzip("./latestVer.zip", {
-    dir: path.join(homeDir, "homebrew", "services"),
-  }).then(
-    () => {
-      console.log("Installation Complete");
-      return true;
-    },
-    (x) => {
-      console.log("Installation Failed", x);
-      return false;
-    },
+  const zip = new unzip.async({ file: "./Build.zip" })
+    .extract(null, path.join(config.homeDir, "homebrew", "services"))
+    .then(
+      () => {},
+
+      (err) => {
+        spinner.stop();
+        const errMsg = err as NodeJS.ErrnoException;
+        if (errMsg.code === "EBUSY") {
+          console.log(`ERROR!!!
+Please Make Sure Both PluginLoader.exe and PluginLoader_noconsole.exe are Not Running and Try Again`);
+        }
+      },
+    );
+
+  // Check If .CEF File Exists
+  const createCef = await fs.writeFile(
+    path.join("C:/Program Files (x86)/Steam", ".cef-enable-remote-debugging"),
+    "",
   );
+
+  spinner.stop();
+  console.log("Installation Complete");
+
+  const shouldDelete = await confirm({ message: "Delete Build Archive ?" });
+
+  shouldDelete &&
+    (await fs.rm("./Build.zip").then(
+      () => true,
+      (e) => console.log(e),
+    ));
 }
 try {
-  start();
+  await start();
 } catch (error) {
   console.log(error);
 }
