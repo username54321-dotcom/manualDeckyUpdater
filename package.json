@@ -1,0 +1,14 @@
+{
+  "type": "module",
+  "dependencies": {
+    "@inquirer/prompts": "^8.4.3",
+    "@octokit/rest": "^22.0.1",
+    "commander": "^14.0.3",
+    "dotenv": "^17.4.2",
+    "extract-zip": "^2.0.1",
+    "ora": "^9.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1"
+  }
+}
