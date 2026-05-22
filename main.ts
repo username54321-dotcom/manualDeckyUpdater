@@ -96,7 +96,9 @@ async function start() {
 
   // End Tasks
   const asyncExec = promisify(exec);
-  await asyncExec("taskkill /F /IM PluginLoader_noconsole.exe /T");
+  await asyncExec("taskkill /F /IM PluginLoader_noconsole.exe /T").catch(
+    () => {},
+  );
 
   // Installing
   spinner.start("Installing");
@@ -185,4 +187,5 @@ try {
   await start();
 } catch (error) {
   console.log(error);
+  await new Promise(() => {});
 }
