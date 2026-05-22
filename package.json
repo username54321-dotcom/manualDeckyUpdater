@@ -13,6 +13,7 @@
     "commander": "^14.0.3",
     "dotenv": "^17.4.2",
     "extract-zip": "^2.0.1",
+    "is-elevated": "^4.0.0",
     "node-stream-zip": "^1.15.0",
     "ora": "^9.4.0"
   },

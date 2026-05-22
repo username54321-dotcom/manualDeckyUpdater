@@ -10,8 +10,22 @@ import { spinner } from "./utils/spinner.ts";
 import { getBuildUrl } from "./utils/getBuildUrl.ts";
 import unzip from "node-stream-zip";
 import chalk from "chalk";
+import isElevated from "is-elevated";
+import { exec, spawn } from "node:child_process";
+import { promisify } from "node:util";
 
 async function start() {
+  // Check If Elevated
+  const isAdmin = await isElevated();
+  if (!isAdmin) {
+    console.log(
+      chalk.redBright(
+        "Admin Permissions are Required. Please Restart App as Administrator.",
+      ),
+    );
+    await new Promise(() => {});
+  }
+
   // Choose Number Of Builds
   const numberOfBuilds = await input({
     message:
@@ -38,7 +52,8 @@ async function start() {
   if (isInstalled) {
     const installedDate = await getInstalledDate();
     console.log(
-      `Local Build Date : ${chalk.blueBright.bgBlack.bold(installedDate.toLocaleString())}`,
+      `
+      Local Build Date : ${chalk.blueBright.bgBlack.bold(installedDate.toLocaleString())}`,
     );
   }
 
@@ -78,6 +93,10 @@ async function start() {
     message: "Enter Steam Installation Path. ( Leave Empty For Default )",
     default: "C:/Program Files (x86)/Steam",
   });
+
+  // End Tasks
+  const asyncExec = promisify(exec);
+  await asyncExec("taskkill /F /IM PluginLoader_noconsole.exe /T");
 
   // Installing
   spinner.start("Installing");
@@ -141,6 +160,15 @@ async function start() {
 
   spinner.stop();
   console.log(chalk.greenBright.bold("Installation Complete"));
+
+  const startNewBuild = await confirm({ message: "Start New Decky Build ?" });
+  if (startNewBuild) {
+    const child = spawn(config.pluginLoader_noConsoleDir, [], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+  }
 
   const shouldDelete = await confirm({
     message: chalk.green("Delete Build Archive ?"),
