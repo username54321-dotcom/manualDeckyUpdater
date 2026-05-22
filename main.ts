@@ -169,7 +169,7 @@ async function start() {
       detached: true,
       stdio: "ignore",
       windowsHide: true,
-    });
+    }).unref();
   }
 
   const shouldDelete = await confirm({
