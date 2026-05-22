@@ -1,4 +1,3 @@
-import type { components } from "@octokit/openapi-types";
 import { githubClient } from "../clients/github.ts";
 // type GetLatestVerUrl = {
 //   id: number;
@@ -24,8 +23,10 @@ import { githubClient } from "../clients/github.ts";
 //     | undefined;
 // } | null;
 
-type Builds = { value: number; name: string }[];
-export async function getLatestBuilds(): Promise<Builds> {
+type Builds = { value: { id: number; createdAt: Date }; name: string }[];
+export async function getLatestBuilds(
+  numberOfBuilds: number = 10,
+): Promise<Builds> {
   // Check Latest Ver
   const latestBuilds = await githubClient.rest.actions
     .listWorkflowRuns({
@@ -33,14 +34,17 @@ export async function getLatestBuilds(): Promise<Builds> {
       repo: "decky-loader",
       workflow_id: "build-win.yml",
       status: "success",
-      per_page: 20,
+      per_page: numberOfBuilds,
     })
-    .then((x) =>
-      x.data.workflow_runs.map((x) => ({
-        value: x.id,
+    .then((x) => {
+      return x.data.workflow_runs.map((x) => ({
+        value: {
+          id: x.id,
+          createdAt: new Date(x.created_at),
+        },
         name: new Date(x.created_at).toLocaleString(),
-      })),
-    );
+      }));
+    });
 
   return latestBuilds;
 }

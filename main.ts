@@ -12,8 +12,16 @@ import unzip from "node-stream-zip";
 import chalk from "chalk";
 
 async function start() {
+  // Choose Number Of Builds
+  const numberOfBuilds = await input({
+    message:
+      "Choose Number of Lastest Checked Builds Between 1 and 100 - Defaults To 10 ",
+    validate: (x) => parseInt(x) > 1 && parseInt(x) < 100,
+    default: "10",
+  });
+
   // Greeting
-  spinner.start(chalk.greenBright("Checking Latest Version")); // start spinner
+  spinner.start(chalk.greenBright("Checking Latest Builds")); // start spinner
 
   // Check Latest Builds
 
@@ -38,16 +46,16 @@ async function start() {
   spinner.stop();
   // Select Build To Install
 
-  const buildId = await select({
+  const chosenBuild = await select({
     message: chalk.greenBright("Select Build To Install"),
-    choices: latestBuilds,
+    choices: latestBuilds.map((x) => ({ name: x.name, value: x.value })),
     pageSize: 20,
   });
 
   // Download Update
   spinner.start(chalk.greenBright("Downloading Build"));
 
-  const buildUrl = await getBuildUrl(buildId);
+  const buildUrl = await getBuildUrl(chosenBuild.id);
 
   const response = await githubClient.request(`GET ${buildUrl}`, {
     // headers: { accept: "application/vnd.github.v3+json" },
@@ -63,12 +71,15 @@ async function start() {
     console.log(chalk.blueBright("Download Successfull to Build.zip"));
   !downloaded && console.log(chalk.redBright("Download Unsuccessfull"));
 
+  // Should Install Prompt ?
   const shouldInstall = await confirm({ message: "Extract and Install?" });
   !shouldInstall && process.exit();
   await input({
     message: "Enter Steam Installation Path. ( Leave Empty For Default )",
     default: "C:/Program Files (x86)/Steam",
   });
+
+  // Installing
   spinner.start("Installing");
   const madeDir = await fs
     .mkdir(path.join(config.homeDir, "homebrew", "services"), {
@@ -78,22 +89,49 @@ async function start() {
       () => true,
       () => false,
     );
-  const zip = new unzip.async({ file: "./Build.zip" })
-    .extract(null, path.join(config.homeDir, "homebrew", "services"))
-    .then(
-      () => {},
 
-      (err) => {
-        spinner.stop();
-        const errMsg = err as NodeJS.ErrnoException;
-        if (errMsg.code === "EBUSY") {
-          console.log(
-            chalk.redBright(`{ERROR!!!
-Please Make Sure Both PluginLoader.exe and PluginLoader_noconsole.exe are Not Running and Try Again}`),
-          );
-        }
-      },
-    );
+  // Unzipping The Build into Path
+
+  try {
+    const zip = new unzip.async({ file: "./Build.zip" });
+
+    await zip.extract(null, path.join(config.homeDir, "homebrew", "services"));
+
+    await zip.close();
+  } catch (error) {
+    spinner.stop();
+    const errMsg = error as NodeJS.ErrnoException;
+    if (errMsg.code === "EBUSY") {
+      console.log(
+        chalk.redBright(`
+  ERROR!!!
+  Please Make Sure Both PluginLoader.exe and PluginLoader_noconsole.exe are Not Running and Try Again`),
+      );
+    }
+  }
+  spinner.stop();
+
+  // Setting the Correct Modified Date
+
+  await fs
+    .utimes(
+      path.join(
+        config.homeDir,
+        "homebrew",
+        "services",
+        "PluginLoader_noconsole.exe",
+      ),
+      new Date(),
+      chosenBuild.createdAt,
+    )
+    .catch((x) => console.log(x));
+  await fs
+    .utimes(
+      path.join(config.homeDir, "homebrew", "services", "PluginLoader.exe"),
+      new Date(),
+      chosenBuild.createdAt,
+    )
+    .catch((x) => console.log(x));
 
   // Check If .CEF File Exists
   const createCef = await fs.writeFile(
@@ -113,6 +151,7 @@ Please Make Sure Both PluginLoader.exe and PluginLoader_noconsole.exe are Not Ru
       () => true,
       (e) => console.log(e),
     ));
+  process.exit();
 }
 try {
   await start();

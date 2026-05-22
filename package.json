@@ -2,7 +2,10 @@
   "type": "module",
   "bin": "main.ts",
   "scripts": {
-    "build": "bun build --compile main.ts --outfile dist/decky-updater.exe "
+    "build": "bun build --compile main.ts --outfile dist/deckyUpdater.exe ",
+    "release:patch": "npm run build && npm version patch && git push origin HEAD --tags",
+    "release:minor": "npm run build && npm version minor && git push origin HEAD --tags",
+    "release:major": "npm run build && npm version major && git push origin HEAD --tags"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.4.3",
@@ -16,5 +19,6 @@
   "devDependencies": {
     "@types/node": "^25.9.1",
     "typescript": "^6.0.3"
-  }
+  },
+  "version": "1.0.0"
 }
