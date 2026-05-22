@@ -25,7 +25,7 @@ import { githubClient } from "../clients/github.ts";
 
 type Builds = { value: { id: number; createdAt: Date }; name: string }[];
 export async function getLatestBuilds(
-  numberOfBuilds: number = 10,
+  numberOfBuilds?: number,
 ): Promise<Builds> {
   // Check Latest Ver
   const latestBuilds = await githubClient.rest.actions
